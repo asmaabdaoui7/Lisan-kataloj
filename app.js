@@ -1,11 +1,13 @@
 /**
  * ============================================================================
- * لِسَان | LISAN — موسوعة التشغيل والملكية والتسليم النهائي (app.js)
- * المستودع الثالث (خاص بالإدارة العليا فقط)
+ * لِسَان | LISAN — لسان كتالوج: موسوعة التشغيل والملكية والتسليم النهائي (app.js)
+ * المستودع الثالث (خاص بالإدارة العليا فقط) — الإصدار 3.1
  * ============================================================================
  * - الدخول محصور بالبريد المالك الرسمي: asmaabdaoui709@gmail.com
  * - كلمة المرور التأسيسية الأولى: Lisan@2026#Owner (قابلة للتغيير والاستعادة عبر البريد)
- * - محرك بحث عربي ذكي يغطي كافة الصلاحيات والميزات والحلول وأصول المشروع
+ * - أداة سيادية مدمجة لتعديل واستعادة بيانات الأدمن الرئيسي (smallisan-admin) مباشرة
+ * - نوافذ تأكيد زجاجية أنيقة قبل أي إجراء سيادي
+ * - محرك بحث عربي ذكي يغطي الصلاحيات والميزات والحصانة والشطب النهائي وأصول المشروع
  * ============================================================================
  */
 
@@ -18,6 +20,18 @@ import {
   signOut,
   onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import {
+  getFirestore,
+  collection,
+  doc,
+  getDocs,
+  setDoc,
+  updateDoc,
+  addDoc,
+  query,
+  where,
+  serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
 /* ============================================================================
  * 1. إعدادات الربط والهوية المالكية
@@ -36,22 +50,38 @@ const OWNER_EMAIL = "asmaabdaoui709@gmail.com";
 const INITIAL_BOOTSTRAP_PASS = "Lisan@2026#Owner";
 const CHECKLIST_STORAGE_KEY = "lisan_handover_day1_checklist_v1";
 
+const ALL_ADMIN_PERMISSIONS = [
+  "manage_content",
+  "delete_content",
+  "approve_submissions",
+  "manage_quizzes",
+  "manage_students",
+  "manage_support",
+  "manage_pages",
+  "manage_sections",
+  "manage_features",
+  "manage_settings",
+  "manage_admins",
+  "view_logs"
+];
+
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+const db = getFirestore(app);
 
 /* ============================================================================
- * 2. قاعدة المعرفة الكاملة للمشروع (5 محاور شاملة)
+ * 2. قاعدة المعرفة الكاملة للمشروع (5 محاور شاملة — الإصدار 3.1)
  * ============================================================================ */
 const DAY1_TASKS = [
   {
     id: "d1-change-manual-pass",
-    title: "تغيير كلمة مرور هذا الدليل عبر البريد الرسمي",
+    title: "تغيير كلمة مرور «لسان كتالوج» عبر البريد الرسمي",
     desc: "من قسم «السيادة والملكية التقنية» اضغط زر إرسال رابط تغيير كلمة المرور إلى البريد الموحد asmaabdaoui709@gmail.com لاستبدال كلمة المرور التأسيسية بكلمة سرية خاصة بكم."
   },
   {
     id: "d1-admin-pass",
-    title: "الدخول لغرفة العمليات وتغيير كلمة مرور الأدمن الافتراضية",
-    desc: "سجّل الدخول لأول مرة في غرفة العمليات (smallisan-admin) بـ Admin وكلمة المرور 123456، ثم ادخل فوراً إلى صندوق «حسابي والسجلات» لتغيير كلمة المرور وتعيين الرمز السريع (4 أرقام)."
+    title: "ضبط بيانات الأدمن الرئيسي لغرفة العمليات (smallisan-admin)",
+    desc: "يمكنكم تغيير اسم المستخدم وكلمة المرور الافتراضية (Admin / 123456) مباشرة من «أداة إدارة واستعادة الأدمن الرئيسي» داخل قسم السيادة والملكية هنا، أو من صندوق «حسابي والسجلات» في غرفة العمليات."
   },
   {
     id: "d1-branding-support",
@@ -114,6 +144,10 @@ const PUBLIC_EXPERIENCE_GUIDE = [
     body: "يسجل الطالب عبر البريد وكلمة المرور (فيصله رابط تفعيل حقيقي لبريده) أو بضغطة واحدة عبر Google (فيُعتمد بريده مؤكَّداً آلياً). لا يمكن تكرار نفس البريد لحسابين أبداً. بعد تأكيد البريد ينتقل الحساب لتبويب «بانتظار المراجعة» لدى الإدارة. صورة البطاقة الجامعية التي يرفعها الطالب سرية تماماً وتراها الإدارة فقط."
   },
   {
+    title: "حظر الحسابات المشطوبة نهائياً (Terminated)",
+    body: "إذا اتخذت الإدارة العليا قرار الشطب النهائي ضد حساب مخالف، يُمنع صاحبه من الدخول بالبريد أو عبر Google فوراً وتظهر له رسالة رسمية توضح سبب الشطب، كما يُمنع إعادة إنشاء حساب جديد بنفس البريد الإلكتروني للأبد."
+  },
+  {
     title: "سجل الدرجات الخاص، نافذة التأكيد، والشارات",
     body: "تُحفظ درجات الاختبارات في ملف الطالب الخاص ولا يراها أي زائر افتراضياً. إذا أراد الطالب إظهارها للزوار في ملفه العام، تظهر له نافذة تأكيد صريحة («هل أنت متأكد من ذلك؟»). كما يمنح النظام شارات تحفيزية تلقائية: (طالب موثق، بريد جامعي، باحث مساهم، متفوق اللسانيات عند 3 اختبارات بدرجة 90% فأكثر)."
   },
@@ -130,11 +164,11 @@ const PUBLIC_EXPERIENCE_GUIDE = [
 const ADMIN_BOXES_GUIDE = [
   {
     title: "1. شؤون الطلبة والعضويات",
-    purpose: "مراجعة طلبات الحسابات بعد تأكيد البريد، معاينة البطاقة الجامعية السرية (مع زر حذفها بعد التحقق حفظاً للخصوصية)، وتطبيق التدرج العادل في التعامل مع الحسابات مع إرسال إشعارات فورية للطلبة."
+    purpose: "مراجعة طلبات الحسابات بعد تأكيد البريد، معاينة البطاقة الجامعية السرية (مع زر حذفها بعد التحقق للخصوصية)، التدرج العادل في التقييد مع إشعار فوري، و«أرشيف المشطوبين» الخاص بقرارات الشطب النهائي الحصرية للأدمن الرئيسي."
   },
   {
     title: "2. الدعم الفني والتذاكر",
-    purpose: "استقبال جميع تذاكر الدعم المفتوحة، البحث الفوري برقم التذكرة الموحّد (LISAN-...) أو اسم المستفيد، الرد الحي داخل المحادثة، إشعار الطالب تلقائياً بالرد، وإغلاق أو إعادة فتح التذكرة."
+    purpose: "استقبال جميع تذاكر الدعم المفتوحة، البحث الفوري برقم التذكرة الموحّد (LISAN-...) أو اسم المستفيد، الرد الحي داخل المحادثة، إشعار الطالب تلقائياً بالرد، وإغلاق أو إعادة فتح التذكرة بعد التأكيد."
   },
   {
     title: "3. إدارة المحتوى والمواد",
@@ -146,7 +180,7 @@ const ADMIN_BOXES_GUIDE = [
   },
   {
     title: "5. مساهمات الطلبة",
-    purpose: "صندوق انتظار لكل مشروع أو تجربة أرسلها طالب؛ يمكنك تعديلها قبل النشر ثم اعتمادها بضغطة زر فيصل للطالب إشعار تهنئة فوري، أو رفضها مع رسالة ملاحظة لطيفة."
+    purpose: "صندوق انتظار لكل مشروع أو تجربة أرسلها طالب؛ يمكنك تعديلها قبل النشر ثم اعتمادها بعد التأكيد فيصل للطالب إشعار تهنئة فوري، أو رفضها مع رسالة ملاحظة لطيفة."
   },
   {
     title: "6. الصفحات التعريفية",
@@ -158,19 +192,19 @@ const ADMIN_BOXES_GUIDE = [
   },
   {
     title: "8. مفاتيح الميزات (تحكم ثلاثي)",
-    purpose: "تحويل أي ميزة أو قسم في الموقع العام بضغطة زر بين 3 حالات: (مفعّل) أو (قريباً) أو (مخفي تماماً)."
+    purpose: "تحويل أي ميزة أو قسم في الموقع العام بعد التأكيد بين 3 حالات: (مفعّل) أو (قريباً) أو (مخفي تماماً)."
   },
   {
     title: "9. الهوية والدعم والسيو",
     purpose: "تغيير الشعار واللون (ينعكسان فوراً في الموقع العام وغرفة العمليات معاً)، ضبط سياسة البطاقة الجامعية، إضافة أرقام تواصل الدعم، وتوليد ملف خريطة الموقع sitemap.xml لمحركات البحث."
   },
   {
-    title: "10. فريق الإدارة والدعم",
-    purpose: "إنشاء حسابات للمشرفين وموظفي الدعم بصورهم ونبذهم التعريفية، ومنح كل شخص الصلاحيات التي يحتاجها فقط، مع بحث ذكي يلتقط أي كلمة داخل نبذة الموظف."
+    title: "10. فريق الإدارة والدعم (مع نظام الحصانة)",
+    purpose: "إنشاء حسابات للمشرفين وموظفي الدعم بصورهم ونبذهم وصلاحياتهم. حساب الأدمن الرئيسي محصّن بشارة ذهبية لا يمكن لأي موظف تعديله أو إيقافه، وحذف الموظفين حصري للأدمن الرئيسي وحده."
   },
   {
     title: "11. حسابي والسجلات",
-    purpose: "تعديل صورتك الشخصية ونبذتك، ضبط الرمز السريع (4 أرقام) والثقة بالمتصفح، تغيير كلمة المرور، ومراجعة سجل النشاطات الذي يوثق كل عملية تمت ومن نفذها."
+    purpose: "تعديل صورتك الشخصية ونبذتك، ضبط الرمز السريع (4 أرقام) والثقة بالمتصفح، تغيير كلمة المرور، ومراجعة سجل النشاطات الذي يوثق كل عملية وسببها ومن نفذها."
   }
 ];
 
@@ -185,36 +219,36 @@ const PERMISSIONS_GUIDE = [
   {
     key: "delete_content",
     name: "حذف المواد والمحتوى نهائياً",
-    canDo: "يظهر له زر «حذف» الأحمر بجانب كل مادة لإزالتها بشكل دائم من قاعدة البيانات.",
+    canDo: "يظهر له زر «حذف» الأحمر بجانب كل مادة مع نافذة تأكيد لإزالتها بشكل دائم من قاعدة البيانات.",
     cannotDo: "صلاحية حساسة؛ لا تمنح تعديلاً بذاتها بل تُضاف مع صلاحية إدارة المحتوى عند الحاجة.",
     recommendedFor: "رئيس التحرير والإدارة العليا فقط."
   },
   {
     key: "approve_submissions",
     name: "مراجعة واعتماد مساهمات الطلبة",
-    canDo: "يفتح صندوق مساهمات الطلبة، يقرأ المشاريع المرسلة، يعدّلها، يعتمد نشرها أو يرفضها مع إرسال إشعار للطالب.",
+    canDo: "يفتح صندوق مساهمات الطلبة، يقرأ المشاريع المرسلة، يعدّلها، يعتمد نشرها أو يرفضها مع إرسال ملاحظة للطالب.",
     cannotDo: "لا يصل لبيانات توثيق الحسابات أو البطاقات الجامعية السرية.",
     recommendedFor: "لجنة مراجعة الأبحاث ومشرف فضاء التبادل."
   },
   {
     key: "manage_quizzes",
     name: "إدارة بنك الاختبارات والأسئلة",
-    canDo: "ينشئ اختبارات جديدة، يضيف ويحذف الأسئلة والخيارات والشروحات العلمية، ويحذف الاختبارات.",
+    canDo: "ينشئ اختبارات جديدة، يضيف ويحذف الأسئلة والخيارات والشروحات العلمية، ويحذف الاختبارات بعد التأكيد.",
     cannotDo: "لا يستطيع تعديل المقالات أو درجات الطلبة المسجلة.",
     recommendedFor: "الأساتذة ومعدّو الاختبارات اللسانية."
   },
   {
     key: "manage_students",
     name: "إدارة شؤون الطلبة وتوثيق العضويات",
-    canDo: "يطلع على طلبات التسجيل، يرى صورة البطاقة الجامعية السرية ويحذفها بعد التوثيق، يعتمد الحسابات، يرسل تحذيرات، ويقيّد أو يعلّق الحسابات ويطلع على درجات الطالب.",
-    cannotDo: "لا يصل لتذاكر الدعم إلا إذا مُنح صلاحية الدعم، ولا يتحكم في الموظفين الآخرين.",
+    canDo: "يراجع طلبات التسجيل والبطاقة الجامعية السرية، يعتمد الحسابات، يرسل تحذيرات، يقيّد أو يعلّق الحسابات مؤقتاً، ويطلع على درجات الطالب.",
+    cannotDo: "لا يظهر له خيار «الشطب النهائي للحساب»؛ فالشطب النهائي حصري للأدمن الرئيسي (الإدارة العليا) وحده.",
     recommendedFor: "مسؤول شؤون الطلبة والتوثيق (شخص موثوق لخصوصية البطاقات)."
   },
   {
     key: "manage_support",
     name: "موظف دعم فني (إدارة التذاكر)",
     canDo: "يفتح صندوق «الدعم الفني والتذاكر»، يبحث برقم التذكرة LISAN-، يرد على الزوار وفاقدي الحسابات، ويغلق أو يعيد فتح التذاكر.",
-    cannotDo: "لا يستطيع العبث بالمحتوى أو الأقسام أو إعدادات المنصة أو حذف حسابات. إذا أردت له معالجة حسابات مقيدة أضف معه «شؤون الطلبة».",
+    cannotDo: "لا يستطيع العبث بالمحتوى أو الأقسام أو إعدادات المنصة أو حذف حسابات.",
     recommendedFor: "موظف خدمة العملاء والدعم الفني."
   },
   {
@@ -234,7 +268,7 @@ const PERMISSIONS_GUIDE = [
   {
     key: "manage_features",
     name: "التحكم الثلاثي بالميزات (Feature Flags)",
-    canDo: "يُفعّل أو يُخفي أو يضع (قريباً) لأي قسم أو ميزة في المنصة مثل الحسابات وكشف الدرجات والدعم والبحث.",
+    canDo: "يُفعّل أو يُخفي أو يضع (قريباً) لأي قسم أو ميزة في المنصة مع نافذة تأكيد واضحة.",
     cannotDo: "صلاحية عالية التأثير على واجهة الموقع العام.",
     recommendedFor: "الإدارة العليا فقط."
   },
@@ -247,15 +281,15 @@ const PERMISSIONS_GUIDE = [
   },
   {
     key: "manage_admins",
-    name: "إدارة فريق المشرفين والصلاحيات",
-    canDo: "يضيف موظفين جدد، يعدّل صلاحياتهم، يوقف حساب موظف مؤقتاً، أو يحذف حسابات المشرفين الفرعيين.",
-    cannotDo: "لا يستطيع حذف أو إيقاف حساب «الأدمن الرئيسي».",
-    recommendedFor: "المدير العام (الإدارة العليا فقط)."
+    name: "إدارة فريق المشرفين والصلاحيات (محدودة الحصانة)",
+    canDo: "يضيف موظفين جدد، يعدّل صلاحياتهم، أو يوقف حساب موظف فرعي مؤقتاً بعد التأكيد.",
+    cannotDo: "محمي بقواعد الحصانة: لا يستطيع تعديل أو إيقاف حساب «الأدمن الرئيسي» أبداً (يظهر له مغلقاً ومحصّناً)، ولا يملك صلاحية «الحذف النهائي» لأي موظف لأن الحذف حصري للأدمن الرئيسي وحده.",
+    recommendedFor: "المدير التنفيذي أو نائب الإدارة (والحذف والسيادة للأدمن الرئيسي فقط)."
   },
   {
     key: "view_logs",
     name: "الاطلاع على سجل النشاطات",
-    canDo: "يشاهد ويبحث في سجل العمليات الأخيرة (من نشر، من عدّل، من وثّق طالباً، من ردّ على تذكرة).",
+    canDo: "يشاهد ويبحث في سجل العمليات الأخيرة مع سبب كل إجراء (من نشر، من قيّد، من شطب، من عدّل).",
     cannotDo: "السجل للقراءة فقط؛ محمي في قواعد البيانات ولا يمكن لأي شخص حذفه أو تعديله.",
     recommendedFor: "الإدارة العليا ومراقب الجودة."
   }
@@ -321,16 +355,21 @@ const FEATURES_TRI_GUIDE = [
 ];
 
 const FAIR_ACTIONS_GUIDE = [
-  { label: "اعتماد وتوثيق / رفع التقييد", tone: "ok", desc: "يمنح الطالب كامل الصلاحيات (اختبارات، حفظ درجات، مساهمات، وملف عام موثق) ويرسل له إشعاراً بالقبول." },
-  { label: "تنبيه أو تحذير ودي", tone: "warn", desc: "لا يقيّد أي ميزة في حساب الطالب؛ فقط يرسل له رسالة تنبيه محترمة في صندوق إشعاراته لتصحيح سلوك أو ملاحظة." },
-  { label: "تقييد النشر والمساهمات فقط", tone: "warn", desc: "إجراء متوازن يمنع الطالب مؤقتاً من إرسال مشاريع جديدة مع بقاء حقه في القراءة وخوض الاختبارات." },
-  { label: "وضع القراءة فقط", tone: "warn", desc: "يسمح للطالب بتصفح المنصة والاطلاع على سجله السابق فقط، مع إيقاف الاختبارات والمساهمات مؤقتاً." },
-  { label: "إخفاء الملف الشخصي العام", tone: "info", desc: "يبقى الحساب نشطاً بالكامل لصاحبه، لكن بطاقته العامة تختفي عن الزوار عند الحاجة لخصوصية أو مراجعة." },
-  { label: "طلب استكمال بيانات / إعادة للمراجعة", tone: "info", desc: "يُستخدم عند وجود نقص في بيانات الجامعة أو عدم وضوح البطاقة الجامعية؛ فيعدّل الطالب بياناته ويعيد الإرسال." },
-  { label: "تعليق مؤقت للحساب", tone: "danger", desc: "أقصى إجراء للمخالفات الجسيمة؛ يجمّد تفاعل الحساب ويعرض للطالب سبب التعليق مع زر مباشر للتواصل مع الدعم الفني للاعتراض أو التوضيح." }
+  { label: "1. اعتماد وتوثيق / رفع التقييد", tone: "ok", desc: "يمنح الطالب كامل الصلاحيات (اختبارات، حفظ درجات، مساهمات، وملف عام موثق) ويرسل له إشعاراً بالقبول بعد نافذة تأكيد." },
+  { label: "2. تنبيه أو تحذير ودي", tone: "warn", desc: "لا يقيّد أي ميزة في حساب الطالب؛ فقط يرسل له رسالة تنبيه محترمة في صندوق إشعاراته لتصحيح سلوك أو ملاحظة." },
+  { label: "3. تقييد النشر والمساهمات فقط", tone: "warn", desc: "إجراء متوازن يمنع الطالب مؤقتاً من إرسال مشاريع جديدة مع بقاء حقه في القراءة وخوض الاختبارات." },
+  { label: "4. وضع القراءة فقط", tone: "warn", desc: "يسمح للطالب بتصفح المنصة والاطلاع على سجله السابق فقط، مع إيقاف الاختبارات والمساهمات مؤقتاً." },
+  { label: "5. إخفاء الملف الشخصي العام", tone: "info", desc: "يبقى الحساب نشطاً بالكامل لصاحبه، لكن بطاقته العامة تختفي عن الزوار عند الحاجة لخصوصية أو مراجعة." },
+  { label: "6. طلب استكمال بيانات / إعادة للمراجعة", tone: "info", desc: "يُستخدم عند وجود نقص في بيانات الجامعة أو عدم وضوح البطاقة الجامعية؛ فيعدّل الطالب بياناته ويعيد الإرسال." },
+  { label: "7. تعليق مؤقت للحساب", tone: "danger", desc: "يجمّد تفاعل الحساب مؤقتاً ويعرض للطالب سبب التعليق مع زر مباشر للتواصل مع الدعم الفني للاعتراض أو التوضيح." },
+  { label: "8. الإجراء النهائي: الشطب النهائي وأرشيف السجل (للأدمن الرئيسي فقط)", tone: "terminated", desc: "أقصى إجراء ولا يظهر إلا لحساب الإدارة العليا بعد نافذة تأكيد مشددة؛ يمنع الدخول وإعادة التسجيل بنفس البريد للأبد، يمسح الصورة الشخصية والبطاقة الجامعية للخصوصية، يتيح إخفاء مساهماته السابقة، ويُبقي القيد وتاريخ الشطب والسبب في تبويب «أرشيف المشطوبين» للرقابة." }
 ];
 
 const TROUBLESHOOTING_GUIDE = [
+  {
+    q: "فقدنا كلمة مرور أو اسم المستخدم للأدمن الرئيسي في غرفة العمليات (smallisan-admin)!",
+    a: "لا حاجة للدخول إلى Firebase يدوياً! انتقل فوراً إلى تبويب «السيادة والملكية» هنا في لسان كتالوج، ستجد «أداة إدارة واستعادة الأدمن الرئيسي المباشرة»؛ اكتب اسم المستخدم الجديد وكلمة المرور الجديدة وفعّل خيار تصفير الرمز السريع واضغط حفظ — وخلال ثانية تعود لك السيطرة الكاملة."
+  },
   {
     q: "عند الضغط على «المتابعة باستخدام Google» تظهر رسالة خطأ أو تفشل النافذة",
     a: "السبب الأشهر هو أن رابط الاستضافة أو الدومين الجديد غير مضاف في النطاقات المصرح بها. ادخل إلى Firebase ← Authentication ← Settings ← Authorized domains وأضف الدومين (بدون https://). والسبب الثاني قد يكون فتح الموقع من متصفح داخلي لتطبيق (مثل واتساب) يحظر النوافذ المنبثقة؛ يُنصح بفتحه في Chrome أو Safari."
@@ -344,12 +383,8 @@ const TROUBLESHOOTING_GUIDE = [
     a: "في شاشة إدخال الأرقام الأربعة يوجد زر «نسيت الرمز السريع؟ غيّره بكلمة المرور». يضغط عليه، يدخل اسم المستخدم وكلمة المرور الأصلية، ويضع رمزاً سريعاً جديداً فوراً."
   },
   {
-    q: "نسينا كلمة مرور الأدمن الرئيسي (Admin) في غرفة العمليات بالكامل!",
-    a: "خطة استعادة السيطرة الطارئة: ادخل بالبريد الموحد (asmaabdaoui709@gmail.com) إلى Firebase ← Firestore Database ← مجموعة admins ← احذف مستند super-admin-root (أو افرغ المجموعة إذا أردت). فور فتح صفحة غرفة العمليات مجدداً، سيعيد النظام تلقائياً تأسيس حساب Admin بكلمة المرور 123456 لتدخل وتغيّرها فوراً."
-  },
-  {
-    q: "نسينا كلمة مرور هذا الدليل (المستودع الثالث)",
-    a: "في شاشة دخول الدليل اضغط «نسيت كلمة المرور؟ إرسال رابط الاستعادة إلى البريد الرسمي»، سيصلك رابط مشفر من Firebase إلى بريد asmaabdaoui709@gmail.com لتعيين كلمة مرور جديدة خلال ثوانٍ."
+    q: "نسينا كلمة مرور هذا الدليل (لسان كتالوج)",
+    a: "في شاشة دخول لسان كتالوج اضغط «نسيت كلمة المرور؟ إرسال رابط الاستعادة إلى البريد الرسمي»، سيصلك رابط مشفر من Firebase إلى بريد asmaabdaoui709@gmail.com لتعيين كلمة مرور جديدة خلال ثوانٍ."
   },
   {
     q: "غيّرنا الشعار أو الألوان أو أضفنا مادة ولم تظهر فوراً على الجوال",
@@ -383,7 +418,7 @@ const OWNERSHIP_ASSETS = [
     repos: [
       { code: "smallisan", desc: "المستودع العام: يحتوي على واجهة الموقع التي يزورها الطلبة والزوار (index.html, style.css, app.js)." },
       { code: "smallisan-admin", desc: "مستودع غرفة العمليات: يحتوي على لوحة التحكم الخاصة بالإدارة والمشرفين وموظفي الدعم." },
-      { code: "مستودع الدليل (الحالي)", desc: "هذا الدليل الشامل للتشغيل والملكية، محفوظ على GitHub Pages كمرجع دائم للإدارة العليا." }
+      { code: "لسان كتالوج (المستودع الثالث)", desc: "هذا الدليل السيادي للتشغيل والملكية وأداة استعادة الأدمن الرئيسي، محفوظ على GitHub Pages كمرجع دائم للإدارة العليا." }
     ],
     links: [
       { label: "الدخول إلى حساب GitHub", url: "https://github.com/login" }
@@ -418,8 +453,9 @@ const OWNERSHIP_ASSETS = [
  * ============================================================================ */
 const state = {
   user: null,
-  activeSection: "day1", // day1 | public | admin | troubleshooting | ownership
-  checklist: {}
+  activeSection: "day1",
+  checklist: {},
+  superAdminDoc: null
 };
 
 const ICONS = {
@@ -429,14 +465,22 @@ const ICONS = {
   sliders: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>`,
   wrench: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>`,
   crown: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`,
+  alert: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+  key: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0 3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>`,
   search: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`,
   external: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`,
   copy: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`
 };
 
 /* ============================================================================
- * 4. مساعدات النص والبحث العربي الذكي والإشعارات
+ * 4. التشفير + نافذة التأكيد الزجاجية + مساعدات النص
  * ============================================================================ */
+async function sha256(text) {
+  const data = new TextEncoder().encode(String(text));
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hashBuffer)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 function escapeHtml(str = "") {
   return String(str)
     .replace(/&/g, "&amp;")
@@ -470,6 +514,50 @@ function showToast(msg, type = "default") {
   setTimeout(() => { el.classList.remove("show"); setTimeout(() => el.remove(), 300); }, 3800);
 }
 
+function confirmActionModal({
+  title = "تأكيد الإجراء السيادي",
+  target = "",
+  message = "هل أنت متأكد من تنفيذ هذا الإجراء؟",
+  confirmText = "نعم، تأكيد التنفيذ",
+  cancelText = "تراجع",
+  tone = "primary"
+}) {
+  return new Promise((resolve) => {
+    document.getElementById("lisan-cat-confirm")?.remove();
+    const backdrop = document.createElement("div");
+    backdrop.id = "lisan-cat-confirm";
+    backdrop.className = "glass-modal-backdrop confirm-top-layer";
+    backdrop.setAttribute("role", "alertdialog");
+    backdrop.setAttribute("aria-modal", "true");
+
+    const ico = tone === "danger" || tone === "warning" ? ICONS.alert : ICONS.crown;
+    backdrop.innerHTML = `
+      <div class="confirm-glass-dialog tone-${tone}">
+        <div class="confirm-icon-badge tone-${tone}">${ico}</div>
+        <h3 class="confirm-title">${escapeHtml(title)}</h3>
+        ${target ? `<div class="confirm-target-chip">${escapeHtml(target)}</div>` : ""}
+        <p class="confirm-message">${escapeHtml(message)}</p>
+        <div class="confirm-actions-row">
+          <button type="button" class="tool-btn" id="cat-conf-cancel">${escapeHtml(cancelText)}</button>
+          <button type="button" class="confirm-submit-btn tone-${tone}" id="cat-conf-ok">${escapeHtml(confirmText)}</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+
+    const close = (ok) => {
+      document.removeEventListener("keydown", onEsc);
+      backdrop.remove();
+      resolve(ok);
+    };
+    const onEsc = (e) => { if (e.key === "Escape") close(false); };
+    document.addEventListener("keydown", onEsc);
+    backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(false); });
+    backdrop.querySelector("#cat-conf-cancel")?.addEventListener("click", () => close(false));
+    backdrop.querySelector("#cat-conf-ok")?.addEventListener("click", () => close(true));
+  });
+}
+
 function loadChecklist() {
   try { state.checklist = JSON.parse(localStorage.getItem(CHECKLIST_STORAGE_KEY) || "{}"); }
   catch { state.checklist = {}; }
@@ -493,9 +581,9 @@ function renderAuthGate() {
   const box = document.getElementById("auth-gate-box");
   box.innerHTML = `
     <div class="auth-badge">${ICONS.lock}</div>
-    <span class="pill-badge">مرجع خاص بالإدارة العليا</span>
-    <h1 class="auth-title">موسوعة التشغيل والملكية — لِسَان</h1>
-    <p class="auth-subtitle">الدخول محصور حصرياً بالبريد الرسمي المالك للمشروع حفاظاً على خصوصية أصول المنصة.</p>
+    <span class="pill-badge gold">مرجع وأداة سيادية — خاص بالإدارة العليا</span>
+    <h1 class="auth-title">لسان كتالوج — التشغيل والملكية</h1>
+    <p class="auth-subtitle">الدخول محصور حصرياً بالبريد الرسمي المالك للمشروع حفاظاً على خصوصية أصول المنصة وصلاحية استعادة الأدمن الرئيسي.</p>
 
     <form id="owner-login-form" class="auth-form">
       <div class="form-group">
@@ -508,7 +596,7 @@ function renderAuthGate() {
       </div>
       <div id="gate-err" class="auth-error" hidden></div>
       <div id="gate-ok" class="auth-success" hidden></div>
-      <button type="submit" class="btn-primary-glass full-width" id="owner-login-btn">فتح موسوعة التشغيل والملكية</button>
+      <button type="submit" class="btn-primary-glass full-width" id="owner-login-btn">فتح لسان كتالوج</button>
     </form>
 
     <div class="gate-footer">
@@ -541,7 +629,6 @@ function renderAuthGate() {
     try {
       await signInWithEmailAndPassword(auth, email, pass);
     } catch (err) {
-      // التأسيس التلقائي عند أول دخول بكلمة المرور الافتراضية فقط
       if ((err.code === "auth/user-not-found" || err.code === "auth/invalid-credential") && pass === INITIAL_BOOTSTRAP_PASS) {
         try {
           await createUserWithEmailAndPassword(auth, email, pass);
@@ -555,7 +642,7 @@ function renderAuthGate() {
           }
           errEl.hidden = false;
           btn.disabled = false;
-          btn.textContent = "فتح موسوعة التشغيل والملكية";
+          btn.textContent = "فتح لسان كتالوج";
           return;
         }
       }
@@ -565,7 +652,7 @@ function renderAuthGate() {
         : "كلمة المرور غير صحيحة. يمكنك استعادتها فوراً عبر البريد الرسمي أدناه.";
       errEl.hidden = false;
       btn.disabled = false;
-      btn.textContent = "فتح موسوعة التشغيل والملكية";
+      btn.textContent = "فتح لسان كتالوج";
     }
   });
 
@@ -586,7 +673,192 @@ function renderAuthGate() {
 }
 
 /* ============================================================================
- * 6. عرض المحاور الخمسة للموسوعة
+ * 6. أداة إدارة واستعادة الأدمن الرئيسي مباشرة في Firestore
+ * ============================================================================ */
+async function fetchSuperAdminFromDb() {
+  const snap = await getDocs(collection(db, "admins"));
+  const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const found = all.find((a) => a.isSuperAdmin === true) || all.find((a) => a.id === "super-admin-root") || null;
+  state.superAdminDoc = found;
+  return { found, all };
+}
+
+async function mountSuperAdminRecoveryWidget() {
+  const box = document.getElementById("super-admin-recovery-mount");
+  if (!box) return;
+  box.innerHTML = `<p class="light-hint">جارٍ جلب حالة حساب الأدمن الرئيسي من قاعدة البيانات...</p>`;
+
+  try {
+    const { found } = await fetchSuperAdminFromDb();
+
+    box.innerHTML = `
+      <div class="recovery-status-strip">
+        <div>
+          <span class="pill-badge ${found ? "ok" : "warn"}">${found ? "حساب الأدمن الرئيسي موجود ونشط ✓" : "الحساب غير موجود — سيتم تأسيسه فور الحفظ"}</span>
+          ${found ? `
+            <p class="recovery-current-meta">
+              اسم المستخدم الحالي: <strong dir="ltr">${escapeHtml(found.username || "Admin")}</strong>
+              • الاسم الظاهر: <strong>${escapeHtml(found.displayName || "الإدارة الرئيسية")}</strong>
+              • الرمز السريع (PIN): <strong>${found.pinHash ? "مُفعّل (4 أرقام)" : "غير مُعيّن"}</strong>
+            </p>
+          ` : `<p class="recovery-current-meta">أدخل اسم المستخدم وكلمة المرور المطلوبة لإعادة تأسيس حساب الأدمن الرئيسي فوراً.</p>`}
+        </div>
+      </div>
+
+      <form id="super-admin-recovery-form" class="recovery-form">
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label for="sa-username">اسم المستخدم للأدمن الرئيسي *</label>
+            <input type="text" id="sa-username" required dir="ltr" value="${escapeHtml(found?.username || "Admin")}" placeholder="Admin" />
+          </div>
+          <div class="form-group">
+            <label for="sa-display">الاسم الظاهر في لوحة التحكم *</label>
+            <input type="text" id="sa-display" required value="${escapeHtml(found?.displayName || "الإدارة الرئيسية")}" placeholder="الإدارة الرئيسية" />
+          </div>
+        </div>
+
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label for="sa-new-pass">${found ? "كلمة المرور الجديدة (اتركها فارغة للإبقاء على الحالية)" : "كلمة المرور الجديدة *"}</label>
+            <input type="password" id="sa-new-pass" ${found ? "" : "required"} minlength="6" placeholder="6 أحرف أو أرقام فأكثر" autocomplete="new-password" />
+          </div>
+          <div class="form-group">
+            <label for="sa-confirm-pass">تأكيد كلمة المرور الجديدة</label>
+            <input type="password" id="sa-confirm-pass" placeholder="أعد كتابة كلمة المرور الجديدة" autocomplete="new-password" />
+          </div>
+        </div>
+
+        <label class="recovery-checkbox-row">
+          <input type="checkbox" id="sa-clear-pin" ${found?.pinHash ? "checked" : ""} />
+          <span>تصفير وإلغاء الرمز السريع (PIN) الحالي ليتمكن الأدمن من الدخول بكلمة المرور الجديدة وتعيين رمز سريع جديد</span>
+        </label>
+
+        <div id="sa-form-err" class="auth-error" hidden></div>
+
+        <div class="owner-email-actions" style="margin-top: 12px">
+          <button type="submit" class="btn-primary-glass" id="sa-save-btn">${ICONS.key} تحديث / استعادة الأدمن الرئيسي الآن</button>
+          <button type="button" class="tool-btn" id="sa-refresh-btn">تحديث الحالة</button>
+        </div>
+      </form>
+    `;
+
+    document.getElementById("sa-refresh-btn")?.addEventListener("click", mountSuperAdminRecoveryWidget);
+
+    document.getElementById("super-admin-recovery-form")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const errEl = document.getElementById("sa-form-err");
+      errEl.hidden = true;
+
+      const username = document.getElementById("sa-username").value.trim();
+      const displayName = document.getElementById("sa-display").value.trim();
+      const newPass = document.getElementById("sa-new-pass").value;
+      const confirmPass = document.getElementById("sa-confirm-pass").value;
+      const clearPin = document.getElementById("sa-clear-pin").checked;
+
+      if (!username || !displayName) {
+        errEl.textContent = "يرجى إدخال اسم المستخدم والاسم الظاهر.";
+        errEl.hidden = false;
+        return;
+      }
+
+      if (newPass) {
+        if (newPass.length < 6) {
+          errEl.textContent = "يجب ألا تقل كلمة المرور الجديدة عن 6 أحرف أو أرقام.";
+          errEl.hidden = false;
+          return;
+        }
+        if (newPass !== confirmPass) {
+          errEl.textContent = "كلمتا المرور غير متطابقتين؛ يرجى التأكد وإعادة المحاولة.";
+          errEl.hidden = false;
+          return;
+        }
+      } else if (!found) {
+        errEl.textContent = "يلزم إدخال كلمة مرور جديدة لتأسيس حساب الأدمن الرئيسي.";
+        errEl.hidden = false;
+        return;
+      }
+
+      // التحقق من عدم تكرار اسم المستخدم مع موظف فرعي آخر
+      const dupSnap = await getDocs(query(collection(db, "admins"), where("usernameLower", "==", username.toLowerCase())));
+      const conflict = dupSnap.docs.find((d) => !found || d.id !== found.id);
+      if (conflict) {
+        errEl.textContent = `اسم المستخدم (${username}) مستخدم مسبقاً لدى موظف آخر؛ اختر اسماً مختلفاً.`;
+        errEl.hidden = false;
+        return;
+      }
+
+      const summaryLines = [
+        `اسم المستخدم: ${username}`,
+        `الاسم الظاهر: ${displayName}`,
+        newPass ? "• سيتم استبدال كلمة المرور بكلمة المرور الجديدة المشفرة." : "• ستبقى كلمة المرور الحالية كما هي.",
+        clearPin ? "• سيتم تصفير الرمز السريع (PIN) لفرض الدخول بكلمة المرور." : ""
+      ].filter(Boolean).join("\n");
+
+      const ok = await confirmActionModal({
+        title: "تأكيد تحديث بيانات الأدمن الرئيسي",
+        target: `${displayName} (${username})`,
+        message: `سيتم تطبيق هذه التعديلات فوراً على غرفة العمليات (smallisan-admin):\n${summaryLines}`,
+        confirmText: "نعم، اعتماد وتنفيذ",
+        tone: "warning"
+      });
+      if (!ok) return;
+
+      const btn = document.getElementById("sa-save-btn");
+      btn.disabled = true;
+      btn.textContent = "جارٍ الحفظ المشفّر...";
+
+      try {
+        const now = new Date().toISOString();
+        const updates = {
+          username,
+          usernameLower: username.toLowerCase(),
+          displayName,
+          isSuperAdmin: true,
+          active: true,
+          permissions: ALL_ADMIN_PERMISSIONS,
+          updatedAt: now
+        };
+        if (newPass) updates.passwordHash = await sha256(newPass);
+        if (clearPin) updates.pinHash = "";
+
+        if (found) {
+          await updateDoc(doc(db, "admins", found.id), updates);
+        } else {
+          updates.avatarUrl = "";
+          updates.bio = "الحساب الرئيسي للإدارة العليا لمنصة لِسَان | LISAN";
+          updates.pinHash = "";
+          updates.createdAt = now;
+          await setDoc(doc(db, "admins", "super-admin-root"), updates);
+        }
+
+        await addDoc(collection(db, "logs"), {
+          actor: "الإدارة العليا (لسان كتالوج)",
+          actorUsername: OWNER_EMAIL,
+          actorAvatar: "",
+          action: "تحديث / استعادة الأدمن الرئيسي",
+          details: `اسم المستخدم: ${username}${newPass ? " + تغيير كلمة المرور" : ""}${clearPin ? " + تصفير الرمز السريع" : ""}`,
+          createdAt: now,
+          ts: serverTimestamp()
+        }).catch(() => {});
+
+        showToast("تم تحديث بيانات الأدمن الرئيسي بنجاح! يمكنك الدخول بها الآن في غرفة العمليات ✓");
+        await mountSuperAdminRecoveryWidget();
+      } catch (saveErr) {
+        console.error(saveErr);
+        errEl.textContent = "تعذر الحفظ في قاعدة البيانات؛ تحقق من الاتصال بالإنترنت.";
+        errEl.hidden = false;
+        btn.disabled = false;
+        btn.innerHTML = `${ICONS.key} تحديث / استعادة الأدمن الرئيسي الآن`;
+      }
+    });
+  } catch (err) {
+    console.error(err);
+    box.innerHTML = `<div class="auth-error">تعذر الاتصال بقاعدة بيانات المشرفين حالياً. تحقق من اتصال الإنترنت أو قواعد Firestore.</div>`;
+  }
+}
+
+/* ============================================================================
+ * 7. عرض المحاور الخمسة للموسوعة
  * ============================================================================ */
 const NAV_TABS = [
   { id: "day1", label: "اليوم الأول", icon: ICONS.check, accent: "#16a34a" },
@@ -609,7 +881,6 @@ function renderManualApp() {
   gate.hidden = true;
   appShell.hidden = false;
 
-  // شريط التبويبات العليا
   const navWrap = document.getElementById("manual-tabs-nav");
   if (navWrap) {
     navWrap.innerHTML = NAV_TABS.map((t) => `
@@ -644,8 +915,8 @@ function renderDay1Guide(container) {
   container.innerHTML = `
     <section class="glass-card hero-banner heritage-frame">
       <span class="pill-badge ok">محور الاستلام والتشغيل السريع</span>
-      <h1>مرحباً بالإدارة العليا لمنصة لِسَان | LISAN</h1>
-      <p>صُممت هذه الموسوعة لتكون المرجع الدائم والمستقل لكل صغيرة وكبيرة في المنصة؛ من التشغيل اليومي، وحتى مفاتيح الملكية التقنية الكاملة واستعادة السيطرة دون الحاجة لأي وسيط.</p>
+      <h1>مرحباً بالإدارة العليا في «لسان كتالوج»</h1>
+      <p>المرجع الدائم والمستقل لكل صغيرة وكبيرة في منصة <strong>لِسَان | LISAN</strong>؛ من التشغيل اليومي، وحتى مفاتيح الملكية التقنية وأداة التحكم السيادي المباشر في حساب الأدمن الرئيسي.</p>
       <div class="progress-summary">
         <div class="progress-head"><span>جاهزية التشغيل لليوم الأول</span><strong>${doneCount} من ${DAY1_TASKS.length} (${pct}%)</strong></div>
         <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
@@ -677,10 +948,10 @@ function renderDay1Guide(container) {
           <article class="glass-card quick-nav-card heritage-card stagger-in" style="--stagger:${i}; --card-accent:${t.accent}" data-jump-tab="${t.id}" tabindex="0" role="button">
             <div class="card-ico-box" style="--card-accent:${t.accent}">${t.icon}</div>
             <h3>${t.label}</h3>
-            <p>${t.id === "public" ? "الأقسام الستة، عضويات الطلبة، الدرجات، والدعم الفني للزوار."
-              : t.id === "admin" ? "الصناديق الـ 11، الصلاحيات الـ 12، الميزات الثلاثية، والتقييد العادل."
-              : t.id === "troubleshooting" ? "حلول فورية لأشهر المشكلات وخطة استعادة كلمة مرور الأدمن."
-              : "البريد المالك الموحد، روابط Firebase وGitHub وCloudflare وربط الدومين."}</p>
+            <p>${t.id === "public" ? "الأقسام الستة، عضويات الطلبة، الدرجات، الحظر النهائي، والدعم الفني للزوار."
+              : t.id === "admin" ? "الصناديق الـ 11، الحصانة، الصلاحيات الـ 12، الميزات الثلاثية، والشطب النهائي."
+              : t.id === "troubleshooting" ? "حلول فورية لأشهر المشكلات واستعادة الأدمن الرئيسي بضغطة زر."
+              : "أداة استعادة الأدمن الرئيسي المباشرة، البريد الموحد، وروابط Firebase وGitHub وCloudflare."}</p>
           </article>
         `).join("")}
       </div>
@@ -741,10 +1012,18 @@ function renderAdminGuide(container) {
     <section class="glass-card hero-banner heritage-frame">
       <span class="pill-badge">مستودع الإدارة: smallisan-admin</span>
       <h1>الموسوعة الشاملة لغرفة العمليات</h1>
-      <p>شرح تفصيلي للصناديق الـ 11، مصفوفة الصلاحيات الـ 12، نظام التحكم الثلاثي بالميزات (مفعّل / قريباً / مخفي)، والإجراءات العادلة لحسابات الطلبة.</p>
+      <p>شرح تفصيلي للصناديق الـ 11، دستور الحصانة والصلاحيات الـ 12، نوافذ التأكيد الزجاجية، نظام التحكم الثلاثي بالميزات، والتدرج العادل حتى الشطب النهائي.</p>
     </section>
 
-    <!-- 1. الصناديق الـ 11 -->
+    <section class="glass-card immunity-policy-banner" style="margin-bottom: 24px">
+      <h3>🛡 دستور الحصانة والتأكيد المعتمد في غرفة العمليات (الإصدار 3.1)</h3>
+      <ul>
+        <li><strong>حصانة الأدمن الرئيسي:</strong> لا يستطيع أي مشرف تعديل أو إيقاف أو حذف حساب الأدمن الرئيسي؛ يظهر له مغلقاً بشارة ذهبية «محصّن».</li>
+        <li><strong>حصر القرارات القصوى بالإدارة العليا:</strong> حذف حسابات الموظفين، والشطب النهائي لحسابات الطلبة، كلاهما محصور بالأدمن الرئيسي وحده ولا يظهران لأي مشرف فرعي.</li>
+        <li><strong>نوافذ تأكيد زجاجية أنيقة:</strong> لا يُنفّذ أي إجراء مهم (تقييد، تحذير، شطب، حذف، تعديل صلاحيات، أو تغيير حالة ميزة) إلا بعد نافذة تأكيد واضحة تمنع الأخطاء البشرية، مع تسجيل السبب في السجل.</li>
+      </ul>
+    </section>
+
     <section class="section-block">
       <h2 class="block-heading">أولاً: شرح صناديق غرفة العمليات (11 صندوقاً)</h2>
       <div class="bento-grid-2">
@@ -757,7 +1036,6 @@ function renderAdminGuide(container) {
       </div>
     </section>
 
-    <!-- 2. دليل الصلاحيات الـ 12 -->
     <section class="section-block">
       <h2 class="block-heading">ثانياً: دليل منح الصلاحيات للموظفين (12 صلاحية دقيقة)</h2>
       <p class="block-lead">عند إضافة موظف جديد في صندوق «فريق الإدارة والدعم»، تحدد له مربعات الاختيار المناسبة فقط. مثال: لإنشاء <strong>موظف دعم فني فقط</strong> حدد مربع «موظف دعم فني» وحده، فيفتح له صندوق التذاكر فقط ولا يرى باقي صناديق المنصة.</p>
@@ -777,7 +1055,6 @@ function renderAdminGuide(container) {
       </div>
     </section>
 
-    <!-- 3. دليل التحكم الثلاثي بالميزات -->
     <section class="section-block">
       <h2 class="block-heading">ثالثاً: دليل التحكم الثلاثي بالميزات (مفعّل / قريباً / مخفي)</h2>
       <p class="block-lead">يمنحكم النظام 3 حالات فورية لكل ميزة وقسم: <strong>مفعّل</strong> (يعمل بشكل طبيعي)، <strong>قريباً</strong> (يظهر للمستخدم مع رسالة أنيقة بأنها ستتوفر قريباً)، و<strong>مخفي</strong> (يختفي تماماً كأنه غير موجود).</p>
@@ -796,10 +1073,9 @@ function renderAdminGuide(container) {
       </div>
     </section>
 
-    <!-- 4. دليل الإجراءات العادلة للطلبة -->
     <section class="section-block">
-      <h2 class="block-heading">رابعاً: دليل التدرج العادل لإدارة حسابات الطلبة</h2>
-      <p class="block-lead">حتى لا يُظلم أي طالب، يوفر النظام تدرجاً عادلاً بدلاً من الحظر المباشر، وكل إجراء يُرفق برسالة توضيحية تصل فوراً إلى صندوق إشعارات الطالب:</p>
+      <h2 class="block-heading">رابعاً: دليل التدرج العادل لإدارة حسابات الطلبة (حتى الشطب النهائي)</h2>
+      <p class="block-lead">يتدرج النظام بعدالة كاملة من التنبيه الودي وحتى الإجراء النهائي المحصور بالإدارة العليا:</p>
       <div class="bento-grid-2">
         ${FAIR_ACTIONS_GUIDE.map((a) => `
           <article class="glass-card fair-card tone-${a.tone}">
@@ -818,7 +1094,7 @@ function renderTroubleshootingGuide(container) {
     <section class="glass-card hero-banner heritage-frame">
       <span class="pill-badge warn">دليل الطوارئ والصيانة الذاتية</span>
       <h1>المشكلات المتوقعة وحلولها الفورية</h1>
-      <p>أشهر المواقف التقنية أو التشغيلية التي قد تصادفكم مع حلها المباشر خطوة بخطوة، بما فيها استعادة كلمة مرور الأدمن الرئيسي.</p>
+      <p>أشهر المواقف التقنية أو التشغيلية التي قد تصادفكم مع حلها المباشر خطوة بخطوة، بما فيها استعادة الأدمن الرئيسي من هنا مباشرة.</p>
     </section>
 
     <section class="section-block">
@@ -834,13 +1110,26 @@ function renderTroubleshootingGuide(container) {
   `;
 }
 
-/* ---------- المحور 5: قسم السيادة والملكية التقنية ---------- */
+/* ---------- المحور 5: قسم السيادة والملكية + أداة استعادة الأدمن الرئيسي المباشرة ---------- */
 function renderOwnershipGuide(container) {
   container.innerHTML = `
     <section class="glass-card hero-banner ownership-hero heritage-frame">
       <span class="pill-badge gold">وثيقة السيادة والملكية الكاملة</span>
       <h1>قسم السيادة والملكية التقنية للمشروع</h1>
-      <p>كافة الأصول التقنية لمنصة <strong>لِسَان | LISAN</strong> مملوكة بالكامل للإدارة العليا ومربوطة ببريد واحد موحّد يضمن لكم السيطرة المطلقة واستعادة الوصول في أي وقت.</p>
+      <p>كافة الأصول التقنية لمنصة <strong>لِسَان | LISAN</strong> مملوكة بالكامل للإدارة العليا، وبإمكانكم من هنا مباشرة استعادة أو تغيير بيانات الأدمن الرئيسي لغرفة العمليات دون فتح Firebase.</p>
+    </section>
+
+    <!-- الأداة السيادية المباشرة: إدارة واستعادة الأدمن الرئيسي لغرفة العمليات -->
+    <section class="glass-card recovery-tool-card heritage-frame">
+      <div class="recovery-tool-head">
+        <div class="recovery-ico-badge">${ICONS.key}</div>
+        <div>
+          <span class="pill-badge gold">أداة سيادية مباشرة — حصراً للإدارة العليا</span>
+          <h2>إدارة واستعادة الأدمن الرئيسي لغرفة العمليات (smallisan-admin)</h2>
+          <p>إذا فقدتم كلمة مرور الأدمن الرئيسي أو الرمز السريع أو أردتم تغيير اسم المستخدم، عدّلوه من هنا مباشرة بضغطة زر دون الحاجة للدخول إلى Firebase.</p>
+        </div>
+      </div>
+      <div id="super-admin-recovery-mount"></div>
     </section>
 
     <!-- بطاقة البريد المالك الموحد -->
@@ -852,7 +1141,7 @@ function renderOwnershipGuide(container) {
       </div>
       <div class="owner-email-actions">
         <button type="button" class="btn-primary-glass" id="copy-owner-email-btn">${ICONS.copy} نسخ البريد الموحد</button>
-        <button type="button" class="tool-btn" id="send-change-pass-btn">إرسال رابط تغيير كلمة مرور هذا الدليل</button>
+        <button type="button" class="tool-btn" id="send-change-pass-btn">إرسال رابط تغيير كلمة مرور لسان كتالوج</button>
       </div>
     </section>
 
@@ -895,17 +1184,19 @@ function renderOwnershipGuide(container) {
       </div>
     </section>
 
-    <!-- بطاقة خطة استعادة السيطرة الطارئة -->
+    <!-- خطة الطوارئ الاحتياطية (يدوياً عبر Firestore عند الحاجة القصوى) -->
     <section class="glass-card emergency-card">
-      <h3>🚨 خطة الطوارئ: استعادة السيطرة على غرفة العمليات (smallisan-admin)</h3>
-      <p>إذا فقدت الإدارة كلمة مرور الأدمن الرئيسي أو تلاعب أحد بالصلاحيات، يمكنكم استعادة السيطرة الكاملة خلال دقيقة واحدة دون أي مبرمج:</p>
+      <h3>🚨 خطة الطوارئ الاحتياطية (البديل اليدوي عبر Firestore)</h3>
+      <p>الأداة المدمجة في أعلى هذه الصفحة تغنيكم تماماً عن الدخول إلى Firebase. ومع ذلك، كخيار احتياطي إضافي في أي ظرف استثنائي:</p>
       <ol>
         <li>سجّلوا الدخول بالبريد الموحد (<strong dir="ltr">${OWNER_EMAIL}</strong>) إلى رابط <strong>Firestore</strong> أعلاه.</li>
-        <li>افتحوا مجموعة <code>admins</code>، ثم احذفوا مستند الأدمن المقفل (أو المستند <code>super-admin-root</code>).</li>
-        <li>افتحوا رابط غرفة العمليات مجدداً؛ سيعيد النظام فوراً تأسيس حساب <code>Admin</code> بكلمة مرور <code>123456</code>، فتدخلون وتغيّرونها وتضبطون الفريق بالكامل.</li>
+        <li>افتحوا مجموعة <code>admins</code> واحذفوا مستند الأدمن الرئيسي (<code>super-admin-root</code>).</li>
+        <li>افتحوا غرفة العمليات مجدداً؛ سيعيد النظام تلقائياً تأسيس حساب <code>Admin</code> بكلمة مرور <code>123456</code>.</li>
       </ol>
     </section>
   `;
+
+  mountSuperAdminRecoveryWidget();
 
   document.getElementById("copy-owner-email-btn")?.addEventListener("click", async () => {
     try {
@@ -917,6 +1208,15 @@ function renderOwnershipGuide(container) {
   });
 
   document.getElementById("send-change-pass-btn")?.addEventListener("click", async () => {
+    const ok = await confirmActionModal({
+      title: "إرسال رابط تغيير كلمة مرور لسان كتالوج",
+      target: OWNER_EMAIL,
+      message: "سيتم إرسال رابط رسمي مشفّر من Firebase إلى البريد المالك الموحّد لتغيير كلمة مرور الدخول لهذا الدليل.",
+      confirmText: "نعم، إرسال الرابط",
+      tone: "primary"
+    });
+    if (!ok) return;
+
     try {
       await sendPasswordResetEmail(auth, OWNER_EMAIL);
       showToast(`تم إرسال رابط تغيير كلمة المرور إلى ${OWNER_EMAIL} ✓`);
@@ -927,7 +1227,7 @@ function renderOwnershipGuide(container) {
 }
 
 /* ============================================================================
- * 7. محرك البحث العربي الذكي الشامل (Spotlight)
+ * 8. محرك البحث العربي الذكي الشامل (Spotlight)
  * ============================================================================ */
 function buildSearchIndex() {
   const idx = [];
@@ -935,10 +1235,16 @@ function buildSearchIndex() {
   PUBLIC_SECTIONS_GUIDE.forEach((s) => idx.push({ tab: "public", tag: "المنصة العامة", title: s.title, body: `${s.branches} ${s.how}` }));
   PUBLIC_EXPERIENCE_GUIDE.forEach((x) => idx.push({ tab: "public", tag: "تجربة الطالب", title: x.title, body: x.body }));
   ADMIN_BOXES_GUIDE.forEach((b) => idx.push({ tab: "admin", tag: "صندوق عمليات", title: b.title, body: b.purpose }));
-  PERMISSIONS_GUIDE.forEach((p) => idx.push({ tab: "admin", tag: "صلاحية", title: p.name, body: `${p.canDo} ${p.cannotDo} ${p.recommendedFor}` }));
+  PERMISSIONS_GUIDE.forEach((p) => idx.push({ tab: "admin", tag: "صلاحية وحصانة", title: p.name, body: `${p.canDo} ${p.cannotDo} ${p.recommendedFor}` }));
   FEATURES_TRI_GUIDE.forEach((f) => idx.push({ tab: "admin", tag: "ميزة ثلاثية", title: f.name, body: `${f.benefit} ${f.whenOn} ${f.whenSoon} ${f.whenOff}` }));
-  FAIR_ACTIONS_GUIDE.forEach((a) => idx.push({ tab: "admin", tag: "إجراء عادل", title: a.label, body: a.desc }));
+  FAIR_ACTIONS_GUIDE.forEach((a) => idx.push({ tab: "admin", tag: "إجراء عادل وشطب", title: a.label, body: a.desc }));
   TROUBLESHOOTING_GUIDE.forEach((t) => idx.push({ tab: "troubleshooting", tag: "حل مشكلة", title: t.q, body: t.a }));
+  idx.push({
+    tab: "ownership",
+    tag: "أداة سيادية",
+    title: "أداة إدارة واستعادة الأدمن الرئيسي المباشرة (smallisan-admin)",
+    body: "تغيير اسم المستخدم وكلمة المرور وتصفير الرمز السريع PIN للأدمن الرئيسي مباشرة بدون دخول فايربيس."
+  });
   OWNERSHIP_ASSETS.forEach((a) => idx.push({ tab: "ownership", tag: "ملكية وأصول", title: a.name, body: `${a.role} ${OWNER_EMAIL} ${(a.steps || []).join(" ")} ${(a.repos || []).map((r) => `${r.code} ${r.desc}`).join(" ")}` }));
   return idx;
 }
@@ -964,7 +1270,7 @@ function renderSpotlightResults(raw) {
   if (!wrap) return;
   const norm = normalizeArabic(raw);
   if (!norm) {
-    wrap.innerHTML = `<div class="spotlight-hint">ابحث عن أي كلمة مثل: <strong>صلاحية، دومين، Cloudflare، تذكرة، بطاقة، درجات، قريباً، استعادة، GitHub</strong>...</div>`;
+    wrap.innerHTML = `<div class="spotlight-hint">ابحث عن أي كلمة مثل: <strong>استعادة الأدمن، حصانة، شطب، صلاحية، دومين، Cloudflare، تذكرة، بطاقة، قريباً</strong>...</div>`;
     return;
   }
   const tokens = norm.split(" ").filter(Boolean);
@@ -997,7 +1303,7 @@ function renderSpotlightResults(raw) {
 }
 
 /* ============================================================================
- * 8. نقطة الانطلاق
+ * 9. نقطة الانطلاق
  * ============================================================================ */
 function init() {
   loadChecklist();
@@ -1012,7 +1318,7 @@ function init() {
 
   document.getElementById("owner-logout-btn")?.addEventListener("click", async () => {
     await signOut(auth);
-    showToast("تم تسجيل الخروج من موسوعة التشغيل");
+    showToast("تم تسجيل الخروج من لسان كتالوج");
   });
 
   document.addEventListener("keydown", (e) => {
@@ -1022,6 +1328,7 @@ function init() {
       e.preventDefault();
       openSpotlight();
     } else if (e.key === "Escape") {
+      if (document.getElementById("lisan-cat-confirm")) return;
       closeSpotlight();
     }
   });
